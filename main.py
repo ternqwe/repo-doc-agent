@@ -30,3 +30,15 @@ def extract_repo_content(repo_url: str) -> dict[str, str]:
                 repo_data[file_str] = content
                 
     return repo_data
+
+def format_repo_for_llm(repo_data: dict[str, str]) -> str:
+    """Formats the repository data into a single string for LLM input."""
+    formatted_parts = []
+    for file_path, content in repo_data.items():
+        formatted_string = f"""File: {file_path}\n```{content}```"""
+
+        formatted_parts.append(formatted_string)
+
+    return "\n\n".join(formatted_parts)
+
+
