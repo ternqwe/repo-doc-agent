@@ -1,6 +1,13 @@
 import tempfile
+import os
+from dotenv import load_dotenv
+from google import genai
 from pathlib import Path
 from git import Repo
+
+load_dotenv()
+
+API_KEY = os.getenv("GEMINI_API_KEY")
 
 def read_file_content(file_path: Path) -> str | None:
     """Safely reads text content, ignoring binary files."""
@@ -34,11 +41,41 @@ def extract_repo_content(repo_url: str) -> dict[str, str]:
 def format_repo_for_llm(repo_data: dict[str, str]) -> str:
     """Formats the repository data into a single string for LLM input."""
     formatted_parts = []
+
     for file_path, content in repo_data.items():
-        formatted_string = f"""File: {file_path}\n```{content}```"""
+        formatted_string = f"""File: {file_path}
+        ```
+        {content}
+        ```"""
 
         formatted_parts.append(formatted_string)
 
     return "\n\n".join(formatted_parts)
 
+def generate_documentation(repo_content: str) -> str:
+    """Generates a README.md file using the Gemini API based on the extracted code."""
+    client = genai.Client(api_key=API_KEY)
+    
+    prompt = f"""
+    You are a Senior Software Architect. Your task is to analyze the provided source code of a repository and generate a comprehensive "Technical Architecture Overview" in Markdown format.
 
+    Please include the following sections:
+    1. **Project Overview**: A concise summary of what this project does and its main purpose.
+    2. **Tech Stack**: Key languages, libraries, and frameworks used.
+    3. **Architecture & Structure**: How the code is organized, core modules, and how they interact.
+    4. **Getting Started**: Brief instructions on how a new developer can set up and run this project based on the code.
+
+    Do not include any generic conversational filler. Output only the requested Markdown documentation.
+
+    Repository content:
+    {repo_content}
+    """
+
+    
+    print("Generating documentation with Gemini...")
+    response = client.models.generate_content(
+        model="gemini-2.5-pro",
+        contents=prompt
+    )
+    
+    return response.text
