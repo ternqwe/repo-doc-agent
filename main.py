@@ -74,8 +74,35 @@ def generate_documentation(repo_content: str) -> str:
     
     print("Generating documentation with Gemini...")
     response = client.models.generate_content(
-        model="gemini-2.5-pro",
+        model="gemini-3.8-flash",
         contents=prompt
     )
     
     return response.text
+
+if __name__ == "__main__":
+    print("Welcome to Repo Doc Agent!")
+    target_repo = input("Enter the GitHub repository URL to analyze: ").strip()
+
+    if not target_repo:
+        print("Error: No URL provided. Exiting.")
+    else:
+        # 1. Extract repository content
+        data = extract_repo_content(target_repo)
+        
+        if not data:
+            print("No text files found or repository is empty.")
+        else:
+            # 2. Format data for the LLM
+            llm_context = format_repo_for_llm(data)
+            print(f"Extracted and formatted {len(data)} files. Sending to Gemini...")
+            
+            # 3. Generate documentation
+            result_doc = generate_documentation(llm_context)
+            
+            # 4. Save the generated result
+            output_file = "ARCHITECTURE.md"
+            with open(output_file, "w", encoding="utf-8") as f:
+                f.write(result_doc)
+                
+            print(f"\nSuccess! The documentation has been saved to {output_file}.")
