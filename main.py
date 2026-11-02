@@ -1,5 +1,7 @@
 import tempfile
 import os
+import urllib.parse
+from git.exc import GitCommandError
 from dotenv import load_dotenv
 from google import genai
 from pathlib import Path
@@ -8,6 +10,16 @@ from git import Repo
 load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY")
+
+if not API_KEY:
+    raise ValueError("GEMINI_API_KEY is not configured")
+
+# Filtering constants
+EXCLUDED_DIRS = {".git", ".vscode", "venv", ".venv", "node_modules", "tests", "__pycache__"}
+EXCLUDED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".pdf", ".zip", ".tar", ".gz", ".mp4", ".ico", ".lock"}
+EXCLUDED_FILES = {".env", "secrets.json", "credentials.yml"}
+MAX_FILE_SIZE_BYTES = 100 * 1024  # 100 KB limit per file
+
 
 def read_file_content(file_path: Path) -> str | None:
     """Safely reads text content, ignoring binary files."""
@@ -18,24 +30,48 @@ def read_file_content(file_path: Path) -> str | None:
         return None
 
 def extract_repo_content(repo_url: str) -> dict[str, str]:
-    """Clones a repo and extracts the text content of all tracked files."""
-    repo_data = {}
+    """Clones a repository and extracts the content of all text files."""
     
+    # 1. Validate GitHub URL
+    parsed_url = urllib.parse.urlparse(repo_url)
+    if parsed_url.netloc not in ("github.com", "www.github.com") or not parsed_url.path:
+        print("Error: Invalid GitHub URL. Please provide a valid link (e.g., https://github.com/user/repo).")
+        return {}
+
+    repo_data = {}
     with tempfile.TemporaryDirectory() as temp_dir:
-        print(f"Cloning {repo_url} into {temp_dir}...")
-        repo = Repo.clone_from(repo_url, temp_dir)
-        raw_files = repo.git.ls_files().split("\n")
+        print(f"Cloning {repo_url} into temporary directory...")
         
-        for file_str in raw_files:
-            if not file_str:
-                continue
-                
-            file_path = Path(temp_dir) / file_str
-            content = read_file_content(file_path)
+        # 2. Clone with error handling
+        try:
+            Repo.clone_from(repo_url, temp_dir)
+        except GitCommandError as e:
+            print("Error: Failed to clone the repository.")
+            print("Check if the repository exists, is public, and your internet connection is stable.")
+            return {}
+
+        # 3. Walk through the repository and filter files
+        for root, dirs, files in os.walk(temp_dir):
+            # Exclude unnecessary directories in-place
+            dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
             
-            if content is not None:
-                repo_data[file_str] = content
+            for file in files:
+                # Exclude specific files and extensions
+                if file in EXCLUDED_FILES or any(file.endswith(ext) for ext in EXCLUDED_EXTENSIONS):
+                    continue
+                    
+                file_path = os.path.join(root, file)
                 
+                # Restrict maximum file size
+                if os.path.getsize(file_path) > MAX_FILE_SIZE_BYTES:
+                    continue
+                
+                # Read content and store with relative path
+                content = read_file_content(file_path)
+                if content:
+                    rel_path = os.path.relpath(file_path, temp_dir)
+                    repo_data[rel_path] = content
+                    
     return repo_data
 
 def format_repo_for_llm(repo_data: dict[str, str]) -> str:
