@@ -7,7 +7,7 @@ from prompts import ARCHITECTURE_PROMPT
 logger = logging.getLogger(__name__)
 
 def generate_documentation(repo_content: str) -> str | None:
-    """Generates a README.md file using the Gemini API."""
+    """Generates a ARCHITECTURE.md file using the Gemini API."""
     client = genai.Client(api_key=API_KEY)
     prompt = ARCHITECTURE_PROMPT.format(repo_content=repo_content)
     

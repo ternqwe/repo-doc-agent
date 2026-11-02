@@ -1,18 +1,17 @@
-import os
 import tempfile
 import urllib.parse
 import logging
+from pathlib import Path
 from git import Repo
 from git.exc import GitCommandError
 from config import EXCLUDED_DIRS, EXCLUDED_EXTENSIONS, EXCLUDED_FILES, MAX_FILE_SIZE_BYTES
 
 logger = logging.getLogger(__name__)
 
-def read_file_content(file_path: str) -> str | None:
+def read_file_content(file_path: Path) -> str | None:
     """Reads file content safely, skipping binary files."""
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return f.read()
+        return file_path.read_text(encoding='utf-8')
     except UnicodeDecodeError:
         return None
 
@@ -32,18 +31,31 @@ def extract_repo_content(repo_url: str) -> dict[str, str]:
             logger.error("Failed to clone the repository.")
             return {}
 
-        for root, dirs, files in os.walk(temp_dir):
-            dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
-            for file in files:
-                if file in EXCLUDED_FILES or any(file.endswith(ext) for ext in EXCLUDED_EXTENSIONS):
-                    continue
-                file_path = os.path.join(root, file)
-                if os.path.getsize(file_path) > MAX_FILE_SIZE_BYTES:
-                    continue
-                content = read_file_content(file_path)
-                if content:
-                    rel_path = os.path.relpath(file_path, temp_dir)
-                    repo_data[rel_path] = content
+        temp_path = Path(temp_dir)
+        
+        # Traverse the directory tree using pathlib
+        for file_path in temp_path.rglob('*'):
+            if not file_path.is_file():
+                continue
+            
+            # Exclude specific directories
+            if any(part in EXCLUDED_DIRS for part in file_path.parts):
+                continue
+                
+            # Exclude specific files and extensions
+            if file_path.name in EXCLUDED_FILES or file_path.suffix in EXCLUDED_EXTENSIONS:
+                continue
+                
+            # Restrict maximum file size
+            if file_path.stat().st_size > MAX_FILE_SIZE_BYTES:
+                continue
+                
+            content = read_file_content(file_path)
+            if content:
+                # Use as_posix() to ensure consistent forward slashes in paths
+                rel_path = file_path.relative_to(temp_path).as_posix()
+                repo_data[rel_path] = content
+                
     return repo_data
 
 def format_repo_for_llm(repo_data: dict[str, str]) -> str:
