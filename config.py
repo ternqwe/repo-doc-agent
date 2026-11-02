@@ -1,4 +1,5 @@
 import os
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,3 +15,10 @@ EXCLUDED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".pdf", ".zip", ".tar", 
 EXCLUDED_FILES = {".env", "secrets.json", "credentials.yml"}
 MAX_FILE_SIZE_BYTES = 100 * 1024  # 100 KB limit per file
 TOKEN_LIMIT = 500_000
+
+# Logging configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)

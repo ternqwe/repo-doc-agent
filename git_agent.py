@@ -1,9 +1,12 @@
 import os
 import tempfile
 import urllib.parse
+import logging
 from git import Repo
 from git.exc import GitCommandError
 from config import EXCLUDED_DIRS, EXCLUDED_EXTENSIONS, EXCLUDED_FILES, MAX_FILE_SIZE_BYTES
+
+logger = logging.getLogger(__name__)
 
 def read_file_content(file_path: str) -> str | None:
     """Reads file content safely, skipping binary files."""
@@ -17,16 +20,16 @@ def extract_repo_content(repo_url: str) -> dict[str, str]:
     """Clones a repository and extracts the content of all text files."""
     parsed_url = urllib.parse.urlparse(repo_url)
     if parsed_url.netloc not in ("github.com", "www.github.com") or not parsed_url.path:
-        print("Error: Invalid GitHub URL. Please provide a valid link.")
+        logger.error("Invalid GitHub URL. Please provide a valid link.")
         return {}
 
     repo_data = {}
     with tempfile.TemporaryDirectory() as temp_dir:
-        print(f"Cloning {repo_url} into temporary directory...")
+        logger.info(f"Cloning {repo_url} into temporary directory...")
         try:
             Repo.clone_from(repo_url, temp_dir)
         except GitCommandError:
-            print("Error: Failed to clone the repository.")
+            logger.error("Failed to clone the repository.")
             return {}
 
         for root, dirs, files in os.walk(temp_dir):
@@ -50,4 +53,3 @@ def format_repo_for_llm(repo_data: dict[str, str]) -> str:
         formatted_text += f"\n\n--- File: {file_path} ---\n\n"
         formatted_text += f"```\n{content}\n```"
     return formatted_text
-
