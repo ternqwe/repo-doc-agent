@@ -131,14 +131,31 @@ if __name__ == "__main__":
         else:
             # 2. Format data for the LLM
             llm_context = format_repo_for_llm(data)
-            print(f"Extracted and formatted {len(data)} files. Sending to Gemini...")
+            approx_tokens = len(llm_context) // 4
             
-            # 3. Generate documentation
+            print(f"Extracted and formatted {len(data)} files.")
+            print(f"Approximate token count: {approx_tokens:,}")
+            
+            # 3. Context size control
+            TOKEN_LIMIT = 500_000  # Safe limit for API free tier
+            if approx_tokens > TOKEN_LIMIT:
+                print(f"\nWarning: The repository is too large ({approx_tokens:,} tokens).")
+                print("This may exceed your API quota or result in a timeout.")
+                proceed = input("Do you want to proceed anyway? (y/n): ").strip().lower()
+                if proceed != 'y':
+                    print("Operation cancelled. Consider adding more folders to EXCLUDED_DIRS.")
+                    exit(0)
+                    
+            print("Sending to Gemini...")
+            
+            # 4. Generate documentation
             result_doc = generate_documentation(llm_context)
             
-            # 4. Save the generated result
-            output_file = "ARCHITECTURE.md"
-            with open(output_file, "w", encoding="utf-8") as f:
-                f.write(result_doc)
-                
-            print(f"\nSuccess! The documentation has been saved to {output_file}.")
+            if result_doc:
+                output_file = "ARCHITECTURE.md"
+                with open(output_file, "w", encoding="utf-8") as f:
+                    f.write(result_doc)
+                print(f"\nSuccess! The documentation has been saved to {output_file}.")
+            else:
+                print("\nFailed to generate documentation due to an API error.")
+
